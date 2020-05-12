@@ -16,6 +16,8 @@ use std::ops::Range;
 use std::os::raw::c_void;
 use std::ptr;
 use std::sync::Arc;
+use std::fs::File;
+use std::os::unix::io::FromRawFd;
 
 use check_errors;
 use device::Device;
@@ -218,6 +220,32 @@ impl DeviceMemory {
     #[inline]
     pub fn size(&self) -> usize {
         self.size
+    }
+
+    //Get external memory fd
+    pub fn get_memory_fd_khr(&self,handle_type: ExternalMemoryHandleType)->Result<File, ExternalMemoryAllocError>
+    {
+        let raw_fd = unsafe{
+        let vk = self.device.pointers();
+        let infos = vk::MemoryGetFdInfoKHR
+        {
+            sType: vk::VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR,
+            pNext: ptr::null(),
+            memory: self.internal_object(),
+            handleType: handle_type as u32
+        };
+
+        let mut output = MaybeUninit::uninit();
+        check_errors(vk.GetMemoryFdKHR(
+            self.device.internal_object(),
+            &infos,
+            output.as_mut_ptr(),
+        ))?;
+        output.assume_init()
+        };
+
+        let fd = unsafe{File::from_raw_fd(raw_fd)};
+        Ok(fd)
     }
 }
 
@@ -472,6 +500,23 @@ impl<'a, T: ?Sized + 'a> Drop for CpuAccess<'a, T> {
     }
 }
 
+///External memory type
+#[repr(u32)]
+pub enum ExternalMemoryHandleType
+{
+    EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID = vk::EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID,
+    EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+    EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT = vk::EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT,
+}
+
 /// Error type returned by functions related to `DeviceMemory`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DeviceMemoryAllocError {
@@ -531,6 +576,65 @@ impl From<OomError> for DeviceMemoryAllocError {
         DeviceMemoryAllocError::OomError(err)
     }
 }
+
+
+
+/// Error type returned by functions related to `DeviceMemory`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ExternalMemoryAllocError {
+    /// Not enough memory available.
+    OomError(OomError),
+    /// The maximum number of allocations has been exceeded.
+    TooManyObjects,
+}
+
+impl error::Error for ExternalMemoryAllocError {
+    #[inline]
+    fn description(&self) -> &str {
+        match *self {
+            ExternalMemoryAllocError::OomError(_) => "not enough memory available",
+            ExternalMemoryAllocError::TooManyObjects => {
+                "the maximum number of allocations has been exceeded"
+            }
+        }
+    }
+
+    #[inline]
+    fn cause(&self) -> Option<&dyn error::Error> {
+        match *self {
+            ExternalMemoryAllocError::OomError(ref err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
+impl fmt::Display for ExternalMemoryAllocError {
+    #[inline]
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(fmt, "{}", error::Error::description(self))
+    }
+}
+
+impl From<Error> for ExternalMemoryAllocError {
+    #[inline]
+    fn from(err: Error) -> ExternalMemoryAllocError {
+        match err {
+            e @ Error::OutOfHostMemory | e @ Error::OutOfDeviceMemory => {
+                ExternalMemoryAllocError::OomError(e.into())
+            }
+            Error::TooManyObjects => ExternalMemoryAllocError::TooManyObjects,
+            _ => panic!("unexpected error: {:?}", err),
+        }
+    }
+}
+
+impl From<OomError> for ExternalMemoryAllocError {
+    #[inline]
+    fn from(err: OomError) -> ExternalMemoryAllocError {
+        ExternalMemoryAllocError::OomError(err)
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
