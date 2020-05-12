@@ -195,6 +195,7 @@ pub const STRUCTURE_TYPE_IMAGE_SPARSE_MEMORY_REQUIREMENTS_INFO_2_KHR: u32 = 1000
 pub const STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR: u32 = 1000146003;
 pub const STRUCTURE_TYPE_SPARSE_IMAGE_MEMORY_REQUIREMENTS_2_KHR: u32 = 1000146004;
 pub const STRUCTURE_TYPE_SURFACE_FULL_SCREEN_EXCLUSIVE_INFO_EXT: u32 = 1000255000;
+pub const VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR: u32 = 1000074002;
 
 pub type SystemAllocationScope = u32;
 pub const SYSTEM_ALLOCATION_SCOPE_COMMAND: u32 = 0;
@@ -1015,6 +1016,27 @@ pub const DESCRIPTOR_UPDATE_TEMPLATE_TYPE_RANGE_SIZE_KHR: u32 =
         - DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET_KHR
         + 1);
 pub type DescriptorUpdateTemplateCreateFlagsKHR = Flags;
+
+
+pub type ExternalMemoryHandleTypeFlagBits = u32;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT: u32 = 0x00000001;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT: u32 = 0x00000002;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT: u32 = 0x00000004;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT: u32 = 0x00000008;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT: u32 = 0x00000010;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT: u32 = 0x00000020;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT: u32 = 0x00000040;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT: u32 = 0x00000200;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID: u32 = 0x00000400;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT: u32 = 0x00000080;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT: u32 = 0x00000100;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR: u32 = EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR: u32 = EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT_KHR: u32 = EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT_KHR: u32 = EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT_KHR: u32 = EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT_KHR: u32 = EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT;
+pub const EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT_KHR: u32 = EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT;
 
 pub type PFN_vkAllocationFunction =
     extern "system" fn(*mut c_void, usize, usize, SystemAllocationScope) -> *mut c_void;
@@ -2707,6 +2729,14 @@ pub struct SurfaceFullScreenExclusiveInfoEXT {
     pub fullScreenExclusive: FullScreenExclusiveEXT,
 }
 
+#[repr(C)]
+pub struct MemoryGetFdInfoKHR {
+    pub sType: StructureType,
+    pub pNext: *const c_void,
+    pub memory: DeviceMemory,
+    pub handleType: ExternalMemoryHandleTypeFlagBits
+}
+
 macro_rules! ptrs {
     ($struct_name:ident, { $($name:ident => ($($param_n:ident: $param_ty:ty),*) -> $ret:ty,)+ }) => (
         pub struct $struct_name {
@@ -2958,4 +2988,5 @@ ptrs!(DevicePointers, {
     CmdInsertDebugUtilsLabelEXT => (commandBuffer: CommandBuffer, pLabelInfo: *const DebugUtilsLabelEXT) -> Result,
     AcquireFullScreenExclusiveModeEXT => (device: Device, swapchain: SwapchainKHR) -> Result,
     ReleaseFullScreenExclusiveModeEXT => (device: Device, swapchain: SwapchainKHR) -> Result,
+    GetMemoryFdKHR => (device: Device, pGetFdInfo: *const MemoryGetFdInfoKHR, pFd: *mut std::os::unix::io::RawFd) -> Result,
 });
